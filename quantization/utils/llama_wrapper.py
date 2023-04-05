@@ -2,7 +2,7 @@ import warnings
 from typing import List, Optional, Union
 
 import torch
-from transformers import LlamaForCausalLM, LlamaForCausalLM
+from transformers import LlamaForCausalLM
 from transformers.generation import (
     LogitsProcessorList,
     StoppingCriteriaList,
