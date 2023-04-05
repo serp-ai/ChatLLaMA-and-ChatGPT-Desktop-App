@@ -163,6 +163,9 @@ class OpenAIAssistant():
             for message in inject_messages:
                 messages.append(list(message.values())[0])
 
+        if prompt is None or prompt == "":
+            return messages
+        
         messages.append({
             "role": "user",
             "content": prompt
@@ -408,15 +411,18 @@ class OpenAIAssistant():
 
 class LocalAssistant():
     """
-    ChatGPT wrapper for local model
+    ChatGPT wrapper for local SERPy
     """
     def __init__(
             self,
             model_location: str,
             tokenizer_location: str,
             config_cache: str = None,
+            lora_location: str = None,
             api_key: str = '', 
             embedding_model: Any = 'text-embedding-ada-002',
+            user_string: str = 'Human',
+            assistant_string: str = 'Assistant',
             short_term_memory_summary_prompt: str = None, 
             long_term_memory_summary_prompt: str = None, 
             system_prompt: str = "", 
@@ -446,10 +452,13 @@ class LocalAssistant():
 
         Parameters:
             api_key (str): The OpenAI API key (if using ada embeddings, this is not required)
-            model_location (str): The location/model_id of the model
-            tokenizer_location (str): The location/model_id of the tokenizer
+            model_location (str): The location of the model
+            tokenizer_location (str): The location of the tokenizer
             config_cache (str): The location of the config cache (if using 4, 3, 2 bit quantization, this is required)
+            lora_location (str): The location of the lora model (if using 4, 3, 2 bit quantization, this is not used)
             embedding_model (Any): The model to use for embeddings
+            user_string (str): The user string
+            assistant_string (str): The assistant string
             short_term_memory_summary_prompt (str): The prompt to use for short term memory summarization
             long_term_memory_summary_prompt (str): The prompt to use for long term memory summarization
             system_prompt (str): The system prompt to use for the model
@@ -488,6 +497,9 @@ class LocalAssistant():
         self.tokenizer.add_bos_token = True
         self.use_quant = use_quant
 
+        self.user_string = user_string
+        self.assistant_string = assistant_string
+
         def skip(*args, **kwargs):
             pass
 
@@ -517,6 +529,10 @@ class LocalAssistant():
             make_quant(self.chat_model, ckpt["layers_bit"])
             print("Loading Quant model ...")
             self.chat_model.load_state_dict(ckpt["model"])
+        else:
+            if lora_location is not None:
+                from peft import PeftModel
+                self.chat_model = PeftModel.from_pretrained(self.chat_model, lora_location, torch_dtype=torch.float16, device_map="auto")
         self.chat_model = patch_model(self.chat_model)
         self.chat_model.seqlen = max_seq_len
         self.chat_model.to(device)
@@ -625,6 +641,13 @@ class LocalAssistant():
             if len(self.short_term_memory) == 0 and inject_messages is not None and inject_messages != []:
                 for message in inject_messages:
                     messages.append(list(message.values())[0])
+        else:
+            if inject_messages is not None and inject_messages != []:
+                for message in inject_messages:
+                    messages.append(list(message.values())[0])
+
+        if prompt is None or prompt == "":
+            return messages
 
         messages.append({
             "role": "human",
@@ -644,7 +667,7 @@ class LocalAssistant():
             list: The tokenized stop sequences
         """
         self.tokenizer.add_bos_token = False
-        stop_word_sequences = [self.tokenizer.encode("Human:"), self.tokenizer.encode("Assistant:"), self.tokenizer.encode("\n\nHuman:")[1:], self.tokenizer.encode("\n\nAssistant:")[1:], [self.tokenizer.eos_token_id]] # defaults
+        stop_word_sequences = [self.tokenizer.encode(f"{self.user_string}:"), self.tokenizer.encode(f"{self.assistant_string}:"), self.tokenizer.encode(f"\n\n{self.user_string}:")[1:], self.tokenizer.encode(f"\n\n{self.assistant_string}:")[1:], [self.tokenizer.eos_token_id]] # defaults
         if stop_sequences is not None and stop_sequences != []:
             stop_word_sequences.extend([self.tokenizer.encode(stop_sequence) for stop_sequence in stop_sequences])
         # convert to tensor
@@ -704,9 +727,9 @@ class LocalAssistant():
             long_term_memory += 'Previous related conversations from long term memory:\n\n'
             for point in points:
                 point = point.payload
-                if self.calculate_num_tokens(long_term_memory + f"{point['user_message']['role'].title()}: {point['user_message']['content']}\n\n{point['assistant_message']['role'].title()}: {point['assistant_message']['content']}\n----------\n") > self.long_term_memory_max_tokens:
+                if self.calculate_num_tokens(long_term_memory + f"{self.user_string}: {point['user_message']['content']}\n\n{self.assistant_string}: {point['assistant_message']['content']}\n----------\n") > self.long_term_memory_max_tokens:
                     continue
-                long_term_memory += f"{point['user_message']['role'].title()}: {point['user_message']['content']}\n\n{point['assistant_message']['role'].title()}: {point['assistant_message']['content']}\n----------\n"
+                long_term_memory += f"{self.user_string}: {point['user_message']['content']}\n\n{self.assistant_string}: {point['assistant_message']['content']}\n----------\n"
         if long_term_memory == 'Previous related conversations from long term memory:\n\n':
             return ''
         elif long_term_memory.endswith('\n\nPrevious related conversations from long term memory:\n\n'):
@@ -738,9 +761,9 @@ class LocalAssistant():
             assistant_message (dict): The assistant message to add to long term memory
         """
         if isinstance(self.embedding_model, str):
-            embedding = self.get_embedding(f'Human: {user_message["content"]}\n\nAssistant: {assistant_message["content"]}').data[0].embedding
+            embedding = self.get_embedding(f'{self.user_string}: {user_message["content"]}\n\n{self.assistant_string}: {assistant_message["content"]}').data[0].embedding
         else:
-            embedding = self.get_embedding(f'Human: {user_message["content"]}\n\nAssistant: {assistant_message["content"]}')[0].tolist()
+            embedding = self.get_embedding(f'{self.user_string}: {user_message["content"]}\n\n{self.assistant_string}: {assistant_message["content"]}')[0].tolist()
         points = [
             {
                 "vector": embedding,
@@ -759,7 +782,7 @@ class LocalAssistant():
         """
         prompt = self.short_term_memory_summary_prompt.format(
             previous_summary=self.short_term_memory_summary,
-            conversation=f'Human: {self.short_term_memory[0]["content"]}\n\nAssistant: {self.short_term_memory[1]["content"]}'
+            conversation=f'{self.user_string}: {self.short_term_memory[0]["content"]}\n\n{self.assistant_string}: {self.short_term_memory[1]["content"]}'
         )
         if self.calculate_num_tokens(prompt) > self.max_seq_len - self.short_term_memory_summary_max_tokens:
             prompt = self.tokenizer.decode(self.tokenizer.encode(prompt)[:self.max_seq_len - self.short_term_memory_summary_max_tokens])
@@ -777,7 +800,7 @@ class LocalAssistant():
         """
         prompt = self.long_term_memory_summary_prompt.format(
             previous_summary=self.long_term_memory_summary,
-            conversation='\n\n'.join([f'Human: {point.payload["user_message"]["content"]}\n\nAssistant: {point.payload["assistant_message"]["content"]}' for point in points])
+            conversation='\n\n'.join([f'{self.user_string}: {point.payload["user_message"]["content"]}\n\n{self.assistant_string}: {point.payload["assistant_message"]["content"]}' for point in points])
         )
         if self.calculate_num_tokens(prompt) > self.max_seq_len - self.long_term_memory_summary_max_tokens:
             prompt = self.tokenizer.decode(self.tokenizer.encode(prompt)[:self.max_seq_len - self.long_term_memory_summary_max_tokens])
@@ -821,8 +844,9 @@ class LocalAssistant():
         """
         prompt = ''
         for message in messages:
-            prompt += '\n\n' + f'{message["role"].title()}: {message["content"]}'
-        prompt = prompt.strip() + '\n\nAssistant:'
+            message_header = self.user_string if message['role'].lower() in ['user', 'human'] else message["role"].title()
+            prompt += '\n\n' + f'{message_header}: {message["content"]}'
+        prompt = prompt.strip() + f'\n\n{self.assistant_string}:'
         return prompt
     
     def _tokenize_prompt(self, prompt: str, stop_sequences: list = []) -> list:
@@ -845,10 +869,10 @@ class LocalAssistant():
     
     def _post_process_text(self, text):
         text = text.strip()
-        if text.endswith("Assistant:"):
-            text = text[:-len("Assistant:")]
-        elif text.endswith("Human:"):
-            text = text[:-len("Human:")]
+        if text.endswith(f"{self.assistant_string}:"):
+            text = text[:-len(f"{self.assistant_string}:")]
+        elif text.endswith(f"{self.user_string}:"):
+            text = text[:-len(f"{self.user_string}:")]
         return text.strip()
 
     def get_chat_response(self, prompt: str, max_tokens: int = 2048, min_tokens: int = 0, temperature: float = 0.9, top_k: int = 20, top_p: float = 1.0, n: int = 1, stream: bool = False, repetition_penalty: float = 1.0, length_penalty: float = 1.0, no_repeat_ngram_size: int = 0, inject_messages: list = [], use_memories=True, save_memories=True, stop_sequences: list = [], do_sample: bool = True, num_beams: int = 1, early_stopping: bool = False) -> str:
@@ -870,7 +894,7 @@ class LocalAssistant():
             inject_messages (list): The messages to inject into the prompt
             use_memories (bool): Whether to use memories
             save_memories (bool): Whether to save memories
-            stop_sequences (list): The stop sequences to use for the response (Defaults of ['\n\nHuman:', '\n\nAssistant:', 'Human:', 'Assistant:', self.tokenizer.eos_token_id])
+            stop_sequences (list): The stop sequences to use for the response (Defaults of ['\n\n{self.user_string}:', '\n\n{self.assistant_string}:', '{self.user_string}:', '{self.assistant_string}:', self.tokenizer.eos_token_id])
             do_sample (bool): Whether to sample the response
             num_beams (int): The number of beams to use for the response
             early_stopping (bool): Whether to early stop the response
