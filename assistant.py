@@ -515,7 +515,7 @@ class LocalAssistant():
             config = LlamaConfig.from_pretrained(config_cache)
             self.chat_model = LlamaClass(config)
         elif use_8bit:
-            self.chat_model =LlamaForCausalLM.from_pretrained(model_location, torch_dtype=torch.int8, load_in_8bit=True)
+            self.chat_model =LlamaForCausalLM.from_pretrained(model_location, torch_dtype=torch.int8, load_in_8bit=True, device_map="auto")
         else:
             self.chat_model =LlamaForCausalLM.from_pretrained(model_location, torch_dtype=torch.float16)
         torch.set_default_dtype(torch.float)
