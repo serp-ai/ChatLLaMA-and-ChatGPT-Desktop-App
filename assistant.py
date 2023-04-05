@@ -2,7 +2,7 @@ import os
 import tiktoken
 import openai
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+from transformers import LlamaTokenizer, LlamaForCausalLM, LlamaConfig
 from datetime import datetime
 from typing import Any
 from time import sleep
@@ -491,7 +491,7 @@ class LocalAssistant():
         if api_key is not None and api_key != '':
             openai.api_key = api_key
         self.api_key = api_key
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_location)
+        self.tokenizer = LlamaTokenizer.from_pretrained(tokenizer_location)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
         self.tokenizer.add_bos_token = True
@@ -512,12 +512,12 @@ class LocalAssistant():
         if use_quant:
             assert os.path.exists(model_location), "loading low-bit model requires checkpoint"
             assert os.path.exists(config_cache), "loading low-bit model requires config cache"
-            config = AutoConfig.from_pretrained(config_cache)
+            config = LlamaConfig.from_pretrained(config_cache)
             self.chat_model = LlamaClass(config)
         elif use_8bit:
-            self.chat_model = AutoModelForCausalLM.from_pretrained(model_location, torch_dtype=torch.int8, load_in_8bit=True)
+            self.chat_model =LlamaForCausalLM.from_pretrained(model_location, torch_dtype=torch.int8, load_in_8bit=True)
         else:
-            self.chat_model = AutoModelForCausalLM.from_pretrained(model_location, torch_dtype=torch.float16)
+            self.chat_model =LlamaForCausalLM.from_pretrained(model_location, torch_dtype=torch.float16)
         torch.set_default_dtype(torch.float)
         self.chat_model.eval()
         if use_quant:
