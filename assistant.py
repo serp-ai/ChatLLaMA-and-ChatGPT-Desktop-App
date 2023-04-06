@@ -539,7 +539,8 @@ class LocalAssistant():
                 self.chat_model = PeftModel.from_pretrained(self.chat_model, lora_location, torch_dtype=torch.float16, device_map="auto")
         self.chat_model = patch_model(self.chat_model)
         self.chat_model.seqlen = max_seq_len
-        self.chat_model.to(device)
+        if not use_8bit and not use_quant:
+            self.chat_model.to(device)
         if api_key is None or api_key == '' and (use_long_term_memory == True or use_knowledge_retrieval == True):
             self.embedding_model = KeywordEncoderInferenceModel(max_len=512)
             self.embedding_dimension = 768
