@@ -922,9 +922,9 @@ class LocalAssistant():
         stop_sequences = stop_sequences.extend(stop)
         input_ids, attention_mask, stop_tokens = self._tokenize_prompt(prompt, stop_sequences=stop_sequences)
 
-        if frequency_penalty is not None:
+        if frequency_penalty is not None and frequency_penalty >= 1:
             repetition_penalty = frequency_penalty
-        if presence_penalty is not None:
+        if presence_penalty is not None and presence_penalty >= 1:
             length_penalty = presence_penalty
 
         if self.use_quant:
