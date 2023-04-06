@@ -879,7 +879,7 @@ class LocalAssistant():
             text = text[:-len(f"{self.user_string}:")]
         return text.strip()
 
-    def get_chat_response(self, prompt: str, max_tokens: int = 2048, min_tokens: int = 0, temperature: float = 0.9, top_k: int = 20, top_p: float = 1.0, n: int = 1, stream: bool = False, repetition_penalty: float = 1.0, length_penalty: float = 1.0, no_repeat_ngram_size: int = 0, inject_messages: list = [], use_memories=True, save_memories=True, stop_sequences: list = [], do_sample: bool = True, num_beams: int = 1, early_stopping: bool = False, frequency_penalty=None, presence_penalty=None) -> str:
+    def get_chat_response(self, prompt: str, max_tokens: int = 2048, min_tokens: int = 0, temperature: float = 0.9, top_k: int = 20, top_p: float = 1.0, n: int = 1, stream: bool = False, repetition_penalty: float = 1.0, length_penalty: float = 1.0, no_repeat_ngram_size: int = 0, inject_messages: list = [], use_memories=True, save_memories=True, stop_sequences: list = [], stop: list = [], do_sample: bool = True, num_beams: int = 1, early_stopping: bool = False, frequency_penalty=None, presence_penalty=None) -> str:
         """
         Get a chat response from the model
 
@@ -899,6 +899,7 @@ class LocalAssistant():
             use_memories (bool): Whether to use memories
             save_memories (bool): Whether to save memories
             stop_sequences (list): The stop sequences to use for the response (Defaults of ['\n\n{self.user_string}:', '\n\n{self.assistant_string}:', '{self.user_string}:', '{self.assistant_string}:', self.tokenizer.eos_token_id])
+            stop (list): The stop sequences to use for the response (for compatibility with OpenAI assistant)
             do_sample (bool): Whether to sample the response
             num_beams (int): The number of beams to use for the response
             early_stopping (bool): Whether to early stop the response
@@ -917,6 +918,7 @@ class LocalAssistant():
         if self.debug:
             print(f'Prompt: {prompt}')
 
+        stop_sequences = stop_sequences.extend(stop)
         input_ids, attention_mask, stop_tokens = self._tokenize_prompt(prompt, stop_sequences=stop_sequences)
 
         if frequency_penalty is not None:
