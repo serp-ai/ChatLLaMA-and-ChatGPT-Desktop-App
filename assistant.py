@@ -156,10 +156,14 @@ class OpenAIAssistant():
 
         if self.use_short_term_memory:
             for i, message in enumerate(self.short_term_memory):
-                if inject_messages is not None and inject_messages != [] and i in inject_messages:
-                    messages.append(inject_messages[i])
                 messages.append(message)
-        if len(self.short_term_memory) == 0 and inject_messages is not None and inject_messages != []:
+
+        if inject_messages is not None and inject_messages != []:
+            for i in range(len(messages)):
+                for y, message in enumerate(inject_messages):
+                    if i == list(message.keys())[0]:
+                        messages.insert(i, list(message.values())[0])
+                        inject_messages.pop(y)
             for message in inject_messages:
                 messages.append(list(message.values())[0])
 
@@ -617,34 +621,33 @@ class LocalAssistant():
                 "content": self.system_prompt
             })
 
-        if use_memories:
-            if self.use_long_term_memory:
-                long_term_memory = self.query_long_term_memory(prompt, summarize=self.summarize_long_term_memory)
-                if long_term_memory is not None and long_term_memory != '':
-                    messages.append({
-                        "role": "system",
-                        "content": long_term_memory
-                    })
+        if self.use_long_term_memory:
+            long_term_memory = self.query_long_term_memory(prompt, summarize=self.summarize_long_term_memory)
+            if long_term_memory is not None and long_term_memory != '':
+                messages.append({
+                    "role": "system",
+                    "content": long_term_memory
+                })
 
-            if self.summarize_short_term_memory:
-                if self.short_term_memory_summary != '' and self.short_term_memory_summary is not None:
-                    messages.append({
-                        "role": "system",
-                        "content": self.short_term_memory_summary
-                    })
+        if self.summarize_short_term_memory:
+            if self.short_term_memory_summary != '' and self.short_term_memory_summary is not None:
+                messages.append({
+                    "role": "system",
+                    "content": self.short_term_memory_summary
+                })
 
-            if self.use_short_term_memory:
-                for i, message in enumerate(self.short_term_memory):
-                    if inject_messages is not None and inject_messages != [] and i in inject_messages:
-                        messages.append(inject_messages[i])
-                    messages.append(message)
-            if len(self.short_term_memory) == 0 and inject_messages is not None and inject_messages != []:
-                for message in inject_messages:
-                    messages.append(list(message.values())[0])
-        else:
-            if inject_messages is not None and inject_messages != []:
-                for message in inject_messages:
-                    messages.append(list(message.values())[0])
+        if self.use_short_term_memory:
+            for i, message in enumerate(self.short_term_memory):
+                messages.append(message)
+       
+        if inject_messages is not None and inject_messages != []:
+            for i in range(len(messages)):
+                for y, message in enumerate(inject_messages):
+                    if i == list(message.keys())[0]:
+                        messages.insert(i, list(message.values())[0])
+                        inject_messages.pop(y)
+            for message in inject_messages:
+                messages.append(list(message.values())[0])
 
         if prompt is None or prompt == "":
             return messages
