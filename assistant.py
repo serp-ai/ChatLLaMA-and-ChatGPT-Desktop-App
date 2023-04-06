@@ -879,7 +879,7 @@ class LocalAssistant():
             text = text[:-len(f"{self.user_string}:")]
         return text.strip()
 
-    def get_chat_response(self, prompt: str, max_tokens: int = 2048, min_tokens: int = 0, temperature: float = 0.9, top_k: int = 20, top_p: float = 1.0, n: int = 1, stream: bool = False, repetition_penalty: float = 1.0, length_penalty: float = 1.0, no_repeat_ngram_size: int = 0, inject_messages: list = [], use_memories=True, save_memories=True, stop_sequences: list = [], stop: list = [], do_sample: bool = True, num_beams: int = 1, early_stopping: bool = False, frequency_penalty=None, presence_penalty=None) -> str:
+    def get_chat_response(self, prompt: str, max_tokens: int = 2048, min_tokens: int = 0, temperature: float = 0.9, top_k: int = 20, top_p: float = 1.0, n: int = 1, stream: bool = False, repetition_penalty: float = 1.0, length_penalty: float = 1.0, no_repeat_ngram_size: int = 0, inject_messages: list = [], use_memories=True, save_memories=True, stop_sequences: list = [], stop: list = [], do_sample: bool = True, num_beams: int = 1, early_stopping: bool = False, frequency_penalty=None, presence_penalty=None, max_retries=3) -> str:
         """
         Get a chat response from the model
 
@@ -905,6 +905,7 @@ class LocalAssistant():
             early_stopping (bool): Whether to early stop the response
             frequency_penalty (float): The frequency penalty to use for the response (overrides repetition_penalty (used for compatibility with OpenAI assistant))
             presence_penalty (float): The presence penalty to use for the response (overrides length_penalty (used for compatibility with OpenAI  assistant))
+            max_retries (int): used for compatibility with OpenAI assistant
             
         Returns:
             str: The chat response
