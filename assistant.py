@@ -653,7 +653,7 @@ class LocalAssistant():
             return messages
 
         messages.append({
-            "role": "human",
+            "role": "user",
             "content": prompt
         })
         
@@ -847,7 +847,7 @@ class LocalAssistant():
         """
         prompt = ''
         for message in messages:
-            message_header = self.user_string if message['role'].lower() in ['user', 'human'] else message["role"].title()
+            message_header = self.user_string if message['role'] == 'user' else message["role"].title()
             prompt += '\n\n' + f'{message_header}: {message["content"]}'
         prompt = prompt.strip() + f'\n\n{self.assistant_string}:'
         return prompt
@@ -878,7 +878,7 @@ class LocalAssistant():
             text = text[:-len(f"{self.user_string}:")]
         return text.strip()
 
-    def get_chat_response(self, prompt: str, max_tokens: int = 2048, min_tokens: int = 0, temperature: float = 0.9, top_k: int = 20, top_p: float = 1.0, n: int = 1, stream: bool = False, repetition_penalty: float = 1.0, length_penalty: float = 1.0, no_repeat_ngram_size: int = 0, inject_messages: list = [], use_memories=True, save_memories=True, stop_sequences: list = [], do_sample: bool = True, num_beams: int = 1, early_stopping: bool = False) -> str:
+    def get_chat_response(self, prompt: str, max_tokens: int = 2048, min_tokens: int = 0, temperature: float = 0.9, top_k: int = 20, top_p: float = 1.0, n: int = 1, stream: bool = False, repetition_penalty: float = 1.0, length_penalty: float = 1.0, no_repeat_ngram_size: int = 0, inject_messages: list = [], use_memories=True, save_memories=True, stop_sequences: list = [], do_sample: bool = True, num_beams: int = 1, early_stopping: bool = False, frequency_penalty=None, presence_penalty=None) -> str:
         """
         Get a chat response from the model
 
@@ -901,6 +901,8 @@ class LocalAssistant():
             do_sample (bool): Whether to sample the response
             num_beams (int): The number of beams to use for the response
             early_stopping (bool): Whether to early stop the response
+            frequency_penalty (float): The frequency penalty to use for the response (overrides repetition_penalty (used for compatibility with OpenAI assistant))
+            presence_penalty (float): The presence penalty to use for the response (overrides length_penalty (used for compatibility with OpenAI  assistant))
             
         Returns:
             str: The chat response
@@ -915,6 +917,11 @@ class LocalAssistant():
             print(f'Prompt: {prompt}')
 
         input_ids, attention_mask, stop_tokens = self._tokenize_prompt(prompt, stop_sequences=stop_sequences)
+
+        if frequency_penalty is not None:
+            repetition_penalty = frequency_penalty
+        if presence_penalty is not None:
+            length_penalty = presence_penalty
 
         if self.use_quant:
             response = self.chat_model.generate(input_ids, attention_mask=attention_mask, max_length=max_tokens, min_length=min_tokens, temperature=temperature, top_k=top_k, top_p=top_p, num_return_sequences=n, pad_token_id=self.tokenizer.eos_token_id, eos_token_id=self.tokenizer.eos_token_id, repetition_penalty=repetition_penalty, length_penalty=length_penalty, no_repeat_ngram_size=no_repeat_ngram_size, do_sample=do_sample, num_beams=num_beams, early_stopping=early_stopping)
@@ -931,13 +938,13 @@ class LocalAssistant():
         if save_memories:
             if self.use_short_term_memory:
                 self.add_message_to_short_term_memory(user_message={
-                    "role": "human",
+                    "role": "user",
                     "content": prompt_
                 }, assistant_message=response)
 
             if self.use_long_term_memory:
                 self.add_message_to_long_term_memory(user_message={
-                    "role": "human",
+                    "role": "user",
                     "content": prompt_
                 }, assistant_message=response)
 
