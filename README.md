@@ -4,6 +4,6 @@ A desktop application written in PyQT5 (python). Has support for using openai ch
 
 WIP: Should work but working on documentation and cleaning stuff up
 
-# ❗ Don't forget to join our Discord! It's where all the funs at -> [https://devin.to/discord](https://devin.to/discord)
+# ❗ Don't forget to [join our Discord](https://devin.to/discord)! It's where all the funs at!
 
 ![SERPy logo](https://github.com/serpcompany/serpy/blob/main/logo.png)
