@@ -2,15 +2,16 @@ import os
 import tiktoken
 import openai
 import torch
+from box import Box
 from transformers import LlamaTokenizer, LlamaForCausalLM, LlamaConfig
 from datetime import datetime
 from typing import Any
 from time import sleep
 import transformers
 
-from .memory_manager import MemoryManager
-from .assistant_transformers_patch import patch_model
-from .text_encoder import KeywordEncoderInferenceModel
+from memory_manager import MemoryManager
+from assistant_transformers_patch import patch_model
+from text_encoder import KeywordEncoderInferenceModel
 
 
 class OpenAIAssistant():
@@ -447,6 +448,7 @@ class LocalAssistant():
             max_seq_len: int = 2048, 
             memory_manager: MemoryManager = None,
             device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+            use_fp32: bool = False,
             use_8bit: bool = False,
             use_quant: bool = False,
             debug: bool = False
@@ -484,14 +486,15 @@ class LocalAssistant():
             max_seq_len (int): The maximum sequence length
             memory_manager (MemoryManager): The memory manager to use for long term memory and knowledge retrieval
             device (torch.device): The device to use for the model
+            use_fp32 (bool): Whether to use 32 bit precision
             use_8bit (bool): Whether to use 8 bit precision
             use_quant (bool): Whether to use quantization (4, 3, 2 bit precision)
             debug (bool): Whether to enable debug mode
         """
         if use_quant:
-            from .quantization.utils.llama_wrapper import LlamaClass
-            from .quantization.utils.modelutils import find_layers
-            from .quantization.utils.quant import make_quant
+            from quantization.utils.llama_wrapper import LlamaClass
+            from quantization.utils.modelutils import find_layers
+            from quantization.utils.quant import make_quant
         if api_key is not None and api_key != '':
             openai.api_key = api_key
         self.api_key = api_key
@@ -512,7 +515,8 @@ class LocalAssistant():
         torch.nn.init.normal_ = skip
         torch.set_default_dtype(torch.half)
         transformers.modeling_utils._init_weights = False
-        torch.set_default_dtype(torch.half)
+        if not use_fp32:
+            torch.set_default_dtype(torch.half)
         if use_quant:
             assert os.path.exists(model_location), "loading low-bit model requires checkpoint"
             assert os.path.exists(config_cache), "loading low-bit model requires config cache"
@@ -521,7 +525,7 @@ class LocalAssistant():
         elif use_8bit:
             self.chat_model =LlamaForCausalLM.from_pretrained(model_location, torch_dtype=torch.int8, load_in_8bit=True, device_map="auto")
         else:
-            self.chat_model =LlamaForCausalLM.from_pretrained(model_location, torch_dtype=torch.float16)
+            self.chat_model =LlamaForCausalLM.from_pretrained(model_location, torch_dtype=torch.float16 if not use_fp32 else torch.float32)
         torch.set_default_dtype(torch.float)
         self.chat_model.eval()
         if use_quant:
@@ -536,7 +540,7 @@ class LocalAssistant():
         else:
             if lora_location is not None:
                 from peft import PeftModel
-                self.chat_model = PeftModel.from_pretrained(self.chat_model, lora_location, torch_dtype=torch.float16, device_map="auto")
+                self.chat_model = PeftModel.from_pretrained(self.chat_model, lora_location, torch_dtype=torch.float16 if not use_fp32 else torch.float32, device_map="auto")
         self.chat_model = patch_model(self.chat_model)
         self.chat_model.seqlen = max_seq_len
         if not use_8bit and not use_quant:
@@ -879,7 +883,7 @@ class LocalAssistant():
             text = text[:-len(f"{self.user_string}:")]
         return text.strip()
 
-    def get_chat_response(self, prompt: str, max_tokens: int = 2048, min_tokens: int = 0, temperature: float = 0.9, top_k: int = 20, top_p: float = 1.0, n: int = 1, stream: bool = False, repetition_penalty: float = 1.0, length_penalty: float = 1.0, no_repeat_ngram_size: int = 0, inject_messages: list = [], use_memories=True, save_memories=True, stop_sequences: list = [], stop: list = [], do_sample: bool = True, num_beams: int = 1, early_stopping: bool = False, frequency_penalty=None, presence_penalty=None, max_retries=3) -> str:
+    def get_chat_response(self, prompt: str, max_tokens: int = 2048, min_tokens: int = 0, temperature: float = 0.9, top_k: int = 20, top_p: float = 1.0, n: int = 1, stream: bool = False, repetition_penalty: float = 1.0, length_penalty: float = 1.0, no_repeat_ngram_size: int = 0, inject_messages: list = [], use_memories=True, save_memories=True, stop_sequences: list = [], stop: list = [], logit_bias = {}, do_sample: bool = True, num_beams: int = 1, early_stopping: bool = False, frequency_penalty=None, presence_penalty=None, max_retries=3, use_openai_style_return=False) -> str:
         """
         Get a chat response from the model
 
@@ -904,7 +908,7 @@ class LocalAssistant():
             num_beams (int): The number of beams to use for the response
             early_stopping (bool): Whether to early stop the response
             frequency_penalty (float): The frequency penalty to use for the response (overrides repetition_penalty (used for compatibility with OpenAI assistant))
-            presence_penalty (float): The presence penalty to use for the response (overrides length_penalty (used for compatibility with OpenAI  assistant))
+            presence_penalty (float): The presence penalty to use for the response (overrides length_penalty (used for compatibility with OpenAI assistant))
             max_retries (int): used for compatibility with OpenAI assistant
             
         Returns:
@@ -928,9 +932,9 @@ class LocalAssistant():
             length_penalty = presence_penalty
 
         if self.use_quant:
-            response = self.chat_model.generate(input_ids, attention_mask=attention_mask, max_length=max_tokens, min_length=min_tokens, temperature=temperature, top_k=top_k, top_p=top_p, num_return_sequences=n, pad_token_id=self.tokenizer.eos_token_id, eos_token_id=self.tokenizer.eos_token_id, repetition_penalty=repetition_penalty, length_penalty=length_penalty, no_repeat_ngram_size=no_repeat_ngram_size, do_sample=do_sample, num_beams=num_beams, early_stopping=early_stopping)
+            response = self.chat_model.generate(input_ids, attention_mask=attention_mask, max_length=max_tokens, min_length=min_tokens, temperature=temperature, top_k=top_k, top_p=top_p, num_return_sequences=n, stop_token_id_sequences=stop_tokens, pad_token_id=self.tokenizer.eos_token_id, eos_token_id=self.tokenizer.eos_token_id, repetition_penalty=repetition_penalty, length_penalty=length_penalty, no_repeat_ngram_size=no_repeat_ngram_size, do_sample=do_sample, num_beams=num_beams, early_stopping=early_stopping, logit_bias=logit_bias)
         else:
-            response = self.chat_model.generate(input_ids, attention_mask=attention_mask, max_length=max_tokens, min_length=min_tokens, temperature=temperature, top_k=top_k, top_p=top_p, num_return_sequences=n, stop_token_id_sequences=stop_tokens, pad_token_id=self.tokenizer.eos_token_id, eos_token_id=self.tokenizer.eos_token_id, repetition_penalty=repetition_penalty, length_penalty=length_penalty, no_repeat_ngram_size=no_repeat_ngram_size, do_sample=do_sample, num_beams=num_beams, early_stopping=early_stopping)
+            response = self.chat_model.generate(input_ids, attention_mask=attention_mask, max_length=max_tokens, min_length=min_tokens, temperature=temperature, top_k=top_k, top_p=top_p, num_return_sequences=n, stop_token_id_sequences=stop_tokens, pad_token_id=self.tokenizer.eos_token_id, eos_token_id=self.tokenizer.eos_token_id, repetition_penalty=repetition_penalty, length_penalty=length_penalty, no_repeat_ngram_size=no_repeat_ngram_size, do_sample=do_sample, num_beams=num_beams, early_stopping=early_stopping, logit_bias=logit_bias)
         # remove input_ids from response
         response = response[:, input_ids.shape[-1]:]
 
@@ -951,5 +955,16 @@ class LocalAssistant():
                     "role": "user",
                     "content": prompt_
                 }, assistant_message=response)
+
+        if use_openai_style_return:
+            response = Box(
+                {
+                    "choices": [
+                        {
+                            "message": response
+                        }
+                    ]
+                }
+            )
 
         return response

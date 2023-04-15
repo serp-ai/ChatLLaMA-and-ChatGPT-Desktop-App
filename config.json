@@ -26,11 +26,13 @@
         "debug": false
     },
     "local_chat_config": {
-        "model_location": "models/llama-13b_4w.pth.tar",
-        "tokenizer_location": "decapoda-research/llama-13b-hf",
-        "config_cache": "decapoda-research/llama-13b-hf",
-        "use_8bit": false,
-        "use_quant": true,
+        "model_location": "decapoda-research/llama-7b-hf",
+        "tokenizer_location": "decapoda-research/llama-7b-hf",
+        "config_cache": "decapoda-research/llama-7b-hf",
+        "lora_location": "serpdotai/llama-oasst-lora-7B",
+        "use_fp32": false,
+        "use_8bit": true,
+        "use_quant": false,
         "api_key": "",
         "embedding_model": "text-embedding-ada-002",
         "short_term_memory_summary_prompt": null,

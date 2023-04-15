@@ -130,3 +130,6 @@ dmypy.json
 
 # Backup
 config-backup.json
+
+# Convos
+conversations.db

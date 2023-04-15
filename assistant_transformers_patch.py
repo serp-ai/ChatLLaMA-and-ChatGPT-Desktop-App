@@ -29,6 +29,7 @@ def generate(
     top_p: Optional[float] = None,
     repetition_penalty: Optional[float] = None,
     bad_words_ids: Optional[Iterable[int]] = None,
+    logit_bias: Optional[dict] = None,
     bos_token_id: Optional[int] = None,
     pad_token_id: Optional[int] = None,
     eos_token_id: Optional[int] = None,
@@ -79,6 +80,8 @@ def generate(
             If set to int > 0, all ngrams of size `no_repeat_ngram_size` can only occur once.
         bad_words_ids: (`optional`) list of lists of int
             `bad_words_ids` contains tokens that are not allowed to be generated. In order to get the tokens of the words that should not appear in the generated text, use `tokenizer.encode(bad_word, add_prefix_space=True)`.
+        logit_bias: (`optional`) dict
+            The parameter for logit bias. Default to {}.
         num_return_sequences: (`optional`) int
             The number of independently computed returned sequences for each element in the batch. Default to 1.
         attention_mask (`optional`) obj: `torch.LongTensor` of same shape as `input_ids`
@@ -155,6 +158,7 @@ def generate(
         no_repeat_ngram_size if no_repeat_ngram_size is not None else self.config.no_repeat_ngram_size
     )
     bad_words_ids = bad_words_ids if bad_words_ids is not None else self.config.bad_words_ids
+    logit_bias = logit_bias if logit_bias is not None else self.config.logit_bias
     num_return_sequences = (
         num_return_sequences if num_return_sequences is not None else self.config.num_return_sequences
     )
@@ -196,6 +200,9 @@ def generate(
     assert (
         bad_words_ids is None or isinstance(bad_words_ids, list) and isinstance(bad_words_ids[0], list)
     ), "`bad_words_ids` is either `None` or a list of lists of tokens that should not be generated"
+    assert (
+        logit_bias is None or isinstance(logit_bias, dict)
+    ), "`logit_bias` is either `None` or a dictionary that maps token ids to biases to be added to the logits"
 
     if input_ids is None:
         assert isinstance(bos_token_id, int) and bos_token_id >= 0, (
@@ -328,6 +335,7 @@ def generate(
             repetition_penalty=repetition_penalty,
             no_repeat_ngram_size=no_repeat_ngram_size,
             bad_words_ids=bad_words_ids,
+            logit_bias=logit_bias,
             pad_token_id=pad_token_id,
             eos_token_id=eos_token_id,
             batch_size=effective_batch_size,
@@ -353,6 +361,7 @@ def generate(
             repetition_penalty=repetition_penalty,
             no_repeat_ngram_size=no_repeat_ngram_size,
             bad_words_ids=bad_words_ids,
+            logit_bias=logit_bias,
             pad_token_id=pad_token_id,
             eos_token_id=eos_token_id,
             batch_size=effective_batch_size,
@@ -420,6 +429,7 @@ def _generate_no_beam_search(
     repetition_penalty,
     no_repeat_ngram_size,
     bad_words_ids,
+    logit_bias,
     pad_token_id,
     eos_token_id,
     batch_size,
@@ -451,6 +461,7 @@ def _generate_no_beam_search(
             input_ids=input_ids,
             no_repeat_ngram_size=no_repeat_ngram_size,
             bad_words_ids=bad_words_ids,
+            logit_bias=logit_bias,
             cur_len=cur_len,
             min_length=min_length,
             max_length=max_length,
@@ -545,6 +556,7 @@ def postprocess_next_token_scores(
     input_ids,
     no_repeat_ngram_size,
     bad_words_ids,
+    logit_bias,
     cur_len,
     min_length,
     max_length,
@@ -579,6 +591,11 @@ def postprocess_next_token_scores(
 
         for i, banned_tokens in enumerate(banned_tokens):
             scores[i, banned_tokens] = -float("inf")
+
+    # Apply logit_bias
+    if logit_bias is not None:
+        for token, bias_value in logit_bias.items():
+            scores[:, token] += bias_value
 
     return scores
 

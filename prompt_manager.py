@@ -3,7 +3,7 @@ import json
 import sqlite3
 import hashlib
 
-from .utils import sluggify
+from utils import sluggify
 
 
 # Create a function to generate the hash of the prompt

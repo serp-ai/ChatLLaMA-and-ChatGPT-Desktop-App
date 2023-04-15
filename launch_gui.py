@@ -29,12 +29,12 @@ import qdarkstyle
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from pygments.formatters import HtmlFormatter
 
-from .assistant import OpenAIAssistant, LocalAssistant
-from .tts_elevenlabs import TTSElevenlabs
-from .tools import WebSearch, WolframAlpha
-from .prompt_manager import PromptManager
-from .conversation_manager import ConversationManager
-from .memory_manager import MemoryManager
+from assistant import OpenAIAssistant, LocalAssistant
+from tts_elevenlabs import TTSElevenlabs
+from tools import WebSearch, WolframAlpha
+from prompt_manager import PromptManager
+from conversation_manager import ConversationManager
+from memory_manager import MemoryManager
 
 
 class HotkeyThread(QThread):

@@ -3,7 +3,7 @@ from transformers import AutoTokenizer, AutoModel
 import pytorch_lightning as pl
 import torch.nn.functional as F
 
-from .utils import mean_pooling
+from utils import mean_pooling
 
 class KeywordEncoderInferenceModel(pl.LightningModule):
     """
