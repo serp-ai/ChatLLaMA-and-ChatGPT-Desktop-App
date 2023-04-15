@@ -6,4 +6,6 @@ WIP: Should work but working on documentation and cleaning stuff up
 
 # ❗ Don't forget to [join our Discord](https://devin.to/discord)! It's where all the funs at!
 
+📺 Tutorial: How to use the thing video: [https://youtu.be/LdpxxJJp5FA](https://youtu.be/LdpxxJJp5FA)
+
 ![SERPy logo](https://github.com/serpcompany/serpy/blob/main/logo.png)
